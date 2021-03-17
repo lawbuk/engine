@@ -1,0 +1,25 @@
+Dictionary:
+Data: Data_33218293.csv for 33218293 unit and Data_33217172 for 33217172 Unit
+Site: Boliden
+Model: QSK60T4
+FC1362: Engine Oil Filter Differential Pressure - Data Valid But Above Normal Operating Range - Moderately Severe Level
+FC_Lamp: Amber
+Date range: January 1st 2020 to Decemeber 31st 2020
+
+Parameter     | Unit      | Description
+---------------------------------------
+Date          | date      | Date
+Hour_of_day   | hour      | Hour of the day
+Minute        | minitute  | Minute
+Run_Hours     | hour      | ECM run time
+CCP           | kPa       | Crankcase Pressure
+Density	      | gm/cc     | Oil Density
+Dielectric    | Oil       | Dielectric
+Fuel_Rate     | l/h       | Fuel Rate
+Speed         | rpm       | Engine Speed
+Torque	      | NM        | Engine Net Torque
+Viscosity     | mPa-s     | Oil Viscosity
+Oil_Temp      | F         | Oil Temperature
+Oil_Pressure  | kPa       | Oil Pressure
+Oil_DP        | kPa       | Oil Differential Pressure
+FC_1362       | ---       | Engine Oil Filter Differential Pressure fault code
