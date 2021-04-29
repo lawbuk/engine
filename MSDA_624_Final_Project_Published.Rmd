@@ -1,0 +1,713 @@
+---
+title: "Engine Oil Filter Differential Pressure (ODP) Prediction"
+author: "Lawrence Bukenya"
+date: 'Last edited: `r Sys.Date()`'
+output:
+  html_document: 
+    toc: yes
+    code_folding: hide
+  pdf_document: 
+    toc: yes
+    latex_engine: lualatex
+    keep_tex: yes
+  word_document: 
+    toc: yes
+    toc_depth: 4
+    fig_width: 8
+    fig_caption: TRUE
+    df_print: "default"
+    highlight: "default"
+    reference_docx: "default"
+    keep_md: FALSE
+    md_extensions: NULL
+    pandoc_args: NULL
+# fontsize: 12 pt
+editor_options: 
+  chunk_output_type: console
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE,
+                      fig.height = 4, fig.width = 8,tidy = TRUE)
+
+rm(list=ls()) # Clear R's memory
+# setwd("D:/MSDA_624 Analytics Capstone/Final_Project") # Set the working directory
+
+# installing/loading the package:Using the package will start the updating process of your R installation. It will check for newer versions, and if one is available, will guide you through the decisions you'd need to make
+
+# if(!require(installr)) {install.packages("installr"); require(installr)} #load / install+load installr
+# updateR(fast = TRUE,silent =TRUE)
+# update.packages(ask = FALSE)
+
+```
+# {.tabset .tabset-fade .tabset-pills}
+
+\pagebreak
+
+## Domain I: Business Understanding
+**Background:**  My client is a global power technology leader, is a corporation of complementary business units that design, engineer, manufacture, distribute and service engines and related technologies, including fuel systems, controls, air handling, filtration, emission solutions, and electrical power generation systems.
+
+ The diesel engine business unit supply units for both on highway like semi-trucks and off highway applications like mining, construction, farming and marine. In 2020, the engine segment represents about 32% of the total generated revenue.
+
+ The headquarters of my client is located in United States and employees over 58000 people worldwide and serve customers in approximately 190 countries.
+
+**Existing Analytics:** Working with their customers during the development and field testing their products, low-cost data loggers (LCDs) are installed on the engine or power generators to log performance data. The logged data is then transmitted back to my client server via cell signals or downloaded USB.
+
+ The data collected is analyzed and used to support problems solving to improve the quality of their products and used to plan for the monthly service time.
+
+\pagebreak
+
+## Domain II: Business Problem Framing
+**Business Problem Framing:** My client have installed Spin-on filter into their field test engines through which engine oil flowing to be cleaned of impurities before getting sent through the rest if engine. These filters are designed to last at least 500hrs before getting replaced.
+
+ The oil pressure before and after the filter is monitored to determine oil differential pressure (ODP). This is done by taking a difference between post-filter oil pressure and pre-filter oil pressure.
+ 
+ With time, the ODP value increase more impurities from the oil are retained. The filter is expected to last about 500hrs before reaching 125kPa and at that point, the filter, the filtered must be changed
+
+ However, these filters are getting plugged so fast that most of the last about 200hrs which leads to frequent down time for replacement. My client’s customers are complaining that these irregular down times are costing them a lot of money and can be asking for as feasible solution to reduce these down times
+
+ I met with my client and there is some additional information I need to help me with working on the solution.
+
+ i) What variable contribute more to the oil differential pressure change? Or
+ ii) What variable generate the biggest change in the ODP change?
+ iii) Given the variable associated with ODP, what is the predicted value?
+ iv) When do we expect to hit a certain value of ODP?
+
+
+**Stakeholder Analysis:** Following are the stakeholders for this project.
+
+ i)	My client: Is the main stakeholder in this project as it responsible for manufacturing and planning maintenance schedule for their field engines. Irregular servicing cost my client both time and money since they have to mobilize service engineers and field technicians to have filters changed.
+
+ ii)	My client’s end customers: These are the engine users who run the engines in the field. They are interested in having a reliable running engine with the minimal down time as much as possible. When the oil filters get plugged, there fault codes are triggered which leads to engine derate hence reducing the amount of power needed to perform the required job.
+
+**Data Sources:**
+  My client provided performance data from an engine that was running in Q4 2020 with a spin on filters and with the highest count of oil filter plug in issues in that particular location. The data has parameters/variables/attributes assumed to impact oil consumption.
+
+  These attributes include oil temperature, oil pressure, engine speed, engine torque, fuel rate, oil differential pressure, crankcase pressure (CCP), oil property parameters (i.e. oil viscosity, oil density, and oil dielectric) and the Oil differential pressure fault code (FC_1362). The data provided has a sample rate of 5 second interval.
+
+ This data will be prepared and transformed to handle missing data.Data scaling that might include standardization and or normalization using R packages may be necessary depending on the type of the model expected.
+
+**Expected Benefit of Analysis:** With this analysis will be with predicting the ODP. With this information, my client can schedule the maintenance that aligns with the customers planned down time. Hence avoiding unplanned customer down time. This in turn will save my client a lot of money
+
+**Data mining goal from business goal:**The business goal of my client is to be able to schedule maintenance intervals that aligns with spin on filter performance. This will save my client time and money spent to mobilize service and field engineers to perform filter changes at irregular intervals
+
+\pagebreak
+
+## Domain III: Data Preparation
+### {.tabset .tabset-fade .tabset-pills}
+#### Packages Used
+Following packages are used in this entire project during the analysis.Each step has been explained and the codes have been given where necessary.
+```{r packages, message=FALSE, warning=FALSE, echo = TRUE}
+#install the packages if necessary
+if(!require(tidyverse)) {install.packages("tidyverse"); require(tidyverse)} 
+if(!require(DataExplorer)) {install.packages("DataExplorer"); require(DataExplorer)} #For data exploration
+if(!require(GGally)) {install.packages("GGally"); require(GGally)} #visual summary
+if(!require(forcats)) {install.packages("forcats"); require(forcats)} #visual summary
+if(!require(Hmisc)) {install.packages("Hmisc"); require(Hmisc)} #correlation table
+if(!require(corrplot)) {install.packages("corrplot"); require(corrplot)} #correlation  visualization
+if(!require(equatiomatic)) {install.packages("equatiomatic"); require(equatiomatic)} # extracting linear equation
+if(!require(pander)) {install.packages("pander"); require(pander)} # to create linear model summary
+
+library(reshape2)
+library(knitr)
+library(plotly)
+library(DT)
+library(lubridate)
+library(data.table)
+```
+```{r warning= FALSE, message= FALSE, echo = TRUE}
+lib1.name1 <- c("reshape2",
+                "knitr",
+                "plotly",
+                "DT",
+                "tidyverse",
+                "Data Explorer",
+                "lubridate",
+                "GGally",
+                "Hmisc",
+                "corrplot",
+                "equatiomatic",
+                "pander")
+
+lib1.desc <- c("Used to reshape variables into groups.",
+               "For knitting document and include_graphics, kable functions.",
+               "Used to plot interactive charts.",
+               "Used to display the data on the screen in a scrollable format.",
+               "Used for data manipulation and visualization,includes following packages: readr, ggplot2, tibble, tidyr, dplyr, broom, modelr",
+               "Used for data exploration process.",
+               "Used for date manipulation.",
+               "Used for visual summary",
+               "Used to create correlation table",
+               "Used to create correlation table",
+               "Used to extract linear equation from linear model",
+               "Used to create a linear model summary"
+               
+               )
+
+lib1.desc <-as_tibble(cbind(lib1.name1,lib1.desc))
+colnames(lib1.desc) <- c("Library", "Purpose")
+kable(lib1.desc)
+
+```
+#### Importing Data
+  My client provided data in the excel format (Performance_33218293.csv). This data covers the entire Q4 2020 for an engine with the highest count of ODP fault counts. I uploaded the data to my GitHub engine repository (https://github.com/lawbuk/engine) where it is downloaded for the analysis. Here is a sample of our data set.
+
+```{r data, message=FALSE, warning=FALSE, echo=TRUE}
+# Read in original data sets from Github
+Performance <- as_tibble(read.csv("https://raw.githubusercontent.com/lawbuk/engine/main/Performance_33218293.csv", sep = ",", na.strings = "NA",strip.white = TRUE, stringsAsFactors = FALSE))
+
+# View data with DT package
+datatable(head(Performance, 10))
+
+```
+
+#### Data Properties
+
+**Purpose:** This data set contains performance variables that are related to oil differential pressure. The data collected at 5 second interval and it is to be used to understand the historical performance that led to the activation of fault codes. The the data will be used to build the predictive model that will be used to plan for service time.
+
+**Period:** This data was collected for date range Oct 1st, 2020 through December 31st, 2020.
+
+**Variables:** this data set has 15 variables.
+
+**Peculiarities:** The oil_Diff_Press variable has observations capped at 125kPa. This is because the sensor that is reading the Oil_Diff_Press can read up to 125kPa.
+
+  Below are the variables and their description in this data set
+
+```{r warning= FALSE, message= FALSE, echo = TRUE}
+
+Variable.type <-lapply(Performance,class)
+Variable.desc <- c("Date when data was collected",
+                   "Hour of the day when data was collected (24hr)",
+                   "Minute of the day when data was collected (min)",
+                   "Cumulative Engine hour at the time of data collection (Hrs.)",
+                   "Engine crankcase pressure (CCP) (kPa)",
+                   "Engine oil density",
+                   "Engine dielectric",
+                   "Engine fuel rate (gal/l)",
+                   "Engine speed (rpm)",
+                   "Engine net torque (Nm)",
+                   "Engine oil viscosity",
+                   "Engine oil temperature (Deg C)",
+                   "Engine oil pressure (kPa)",
+                   "Engine Oil Differential Pressure (ODP) (kPa)",
+                   "Engine Oil Differential Pressure Fault Code 1321")
+
+Variable.name1 <- colnames(Performance)
+parameter.desc <-as_tibble(cbind(Variable.name1,Variable.type,Variable.desc))
+colnames(parameter.desc) <- c("Variable", "Type", "Description")
+kable(parameter.desc)
+
+```
+
+#### Initial Data Exploration
+
+All data cleaning steps were performed in RStudio in a R script. The first three columns are removed after getting combined to form a Datetime column, then the data type for each column is set.
+
+```{r echo= TRUE}
+Performance<-Performance%>%
+  mutate(time =str_c(Hour_of_Day,Minute,sep = ":"),
+         time =str_c(Date,time,sep = " "),
+         Date = ymd_hm(time)
+         )%>%
+  select(c(-time,-Hour_of_Day,-Minute))%>%
+  rename(Datetime=Date)
+
+# View data with DT package
+datatable(head(Performance, n=10))
+
+```
+
+**Missing data:** I explored the data for the missing data and as seen the Viscosity, Dielectric and Density columns each has about 0.28% of missing data. Since there are enough observations, these missing points will be used to dropped from the data set.
+
+```{r out.width="100%",echo=TRUE}
+#Check for missing data
+plot_missing(Performance,
+             missing_only = FALSE,
+             geom_label_args = list(),
+             title = "Parameters with missing Data",
+             ggtheme = theme_gray(),
+             theme_config = list(legend.position = c("none")))
+```
+
+**Distributions:** Next I explored the numeric data columns for distribution using histograms. Oil_DP is the target variable; however, its values are capped at 125 because of the sensor limit. In order to be able to predict the correct value, the data to be used for predictive model will be filter for values of Oil_DP less than 125kPa. 
+
+```{r out.width="100%",echo=TRUE}
+# Create Histogram for distribution
+
+Performance %>% select(c(-Run_Hours))%>%
+  plot_histogram(
+    binary_as_factor = TRUE,
+    geom_histogram_args = list(bins = 30L),
+    scale_x = "continuous",
+    title = "Distribution plots",
+    ggtheme = theme_gray(),
+    theme_config = list(),
+    nrow = 2L,
+    ncol = 5L,
+    parallel = FALSE
+    )
+```
+
+**Outliers:** Then I explored data for outliers using Boxplots. These outliers will be taken out of the data as needed.
+
+```{r out.width="100%",echo=TRUE}
+# boxplot for distribution
+setDT(Performance)%>%
+  select(c(-Run_Hours,-FC_1362))%>%
+  na.omit() %>%
+  mutate(month = format(Datetime, "%W"),month = factor(month))%>%
+  melt(id.vars = c("Datetime","month"), variable.name = "param")%>%
+  ggplot(aes(month,value, colour = param))+ geom_boxplot()+
+  facet_wrap(~param, nrow = 2,scales = "free") +
+  ggtitle("Weekly Boxplots to show the outliers")+
+  xlab("Week")+
+  theme(axis.text.x=element_text(angle=90),legend.position="none")
+```
+
+**Redundancy** Fuel_Rate is a function of Speed and Torque, therefore it does not provide any more useful information and this will be removed from the data set
+
+```{r echo = TRUE, warning = FALSE, message = FALSE}
+#Correlation
+M <- round(rcorr(as.matrix(Performance%>%select(-c(Datetime,Run_Hours,FC_1362))))$r,4)
+corrplot(M, method="number")
+```
+
+#### Data Cleaning
+  Data clean up will involve the following steps
+  
+  * Removing all rows with missing values 
+  * Filter for Oil_DP < 125 since this has values capped at 125.
+  * Filter the data only for rated engine running conditions, i.e Speed > 1750, Oil_Temp > 80 and Torque > 10000
+  * Additional filtering for outliers are: Dielectric >= 1.8, Viscosity < 40 and Density < 1
+  * Removed Fuel_Rate because it is redundant since its a function of Speed and Torque
+
+```{r clean_data, fig.show="hold", fig.width=8, echo=TRUE}
+clean_data<-Performance%>%
+  select(-c(Fuel_Rate,FC_1362))%>%
+  filter(Oil_DP<125,
+         Viscosity<40,
+         Density<1,
+         Oil_Pressure<600,
+         Speed>1750,
+         Dielectric >1.8,
+         Oil_Temp >80,
+         Torque > 10000,
+         !is.na(Viscosity),
+         !is.na(Dielectric),
+         !is.na(Density))
+
+par(mar = c(4, 4, .1, .1))
+
+#Check for missing data
+plot_missing(clean_data,
+             missing_only = FALSE,
+             geom_label_args = list(),
+             title = "Parameters with missing Data",
+             ggtheme = theme_gray(),
+             theme_config = list(legend.position = c("none")))
+
+# Create Histogram for distribution
+
+clean_data %>% select(c(-Run_Hours))%>%
+  plot_histogram(
+    binary_as_factor = TRUE,
+    geom_histogram_args = list(bins = 30L),
+    scale_x = "continuous",
+    title = "Distribution plots",
+    ggtheme = theme_gray(),
+    theme_config = list(),
+    nrow = 3L,
+    ncol = 3L,
+    parallel = FALSE
+    )
+
+# boxplot for distribution
+setDT(clean_data)%>%
+  select(-Run_Hours)%>%
+  na.omit() %>%
+  mutate(month = format(Datetime, "%W"),month = factor(month))%>%
+  melt(id.vars = c("Datetime","month"), variable.name = "param")%>%
+  ggplot(aes(month,value, colour = param))+ geom_boxplot()+
+  facet_wrap(~param, nrow = 3,scales = "free") +
+  ggtitle("Weekly Boxplots to show the outliers")+
+  xlab("Week")+
+  theme(axis.text.x=element_text(angle=90),legend.position="none")
+```
+
+\pagebreak
+
+## Domain IV: Methodology
+### {.tabset .tabset-fade .tabset-pills}
+**Analytics Type**
+In the previous section, the data is cleaned and the descriptive analysis was performed to explore the distribution using histogram and box plots. Also, weekly box plots are created to show the weekly trends in our data set.
+
+the e performance data is cleaned and explored. Descriptive analysis and predictive analysis will be performed on the performance data.
+
+ With descriptive analysis, we will look at the distribution and trends in the data provided. Will also use scatter plots on various variables to explore any relationship between different factors. With predictive analysis, I will attempt to use correlation and regression analysis to predict the possible variables that are associated with the ODP.
+
+ * *Descriptive Analytics:* This analysis will be applied to the cleaned data to create the visualization for the purpose understanding the historical performance of our client’s engine. In this analysis, I will use bar plots, histograms, scatter plots and box plots with the use of common R packages like ggplot2 among others.
+
+ * *Predictive Analytics:* To perform this type of analytics, the performance data will be divided into train and test data sets. Train data set will be used to build an ODP predictive models. Whereas the test data will be used to valid the model. In addition, the fault code data will be used to test the model performance.
+
+ There might be data scaling done on some input independent variables that have high scale and then will run a model that will rank the independent variable correlation with dependent variable. Narrows down the number of independent variables to be used in the final predictive model
+
+**Model Selection**
+The following possible models will will be considered during this analysis.
+
+ * *Multiple linear Regression model:* The data provided has both qualitative (numerical) and qualitative (categorical) variables. The response variable (oil differential pressure) is the response valuable; thus, this will be applying a Least squares multiple linear regression to predict the value of Oil_DP and, With the use of mean squared error (MSE) measure, we can evaluate the performance of our model
+ 
+ * *Linear Stepwise Regression Model:* Since we have more than one predictor variable, I will tune the model above using a linear stepwise regression model. This will give use the best simple model with only significant predictors.
+ 
+ * *Polynomial Regression Model:* Depending on the accuracy of the model above, I might a polynomial regression model to improve on the accuracy.
+
+\pagebreak
+
+## Domain V: Domain V: Analysis
+### {.tabset .tabset-fade .tabset-pills}
+#### Regression model background
+For a successful regression analysis, I will follow the following steps:
+
+  1.Explore the data analysis. This has been already completed in the Initial Data Exploration section
+  2. Fit the model using least squares regression 
+  3.Use the model to interpret the coefficient in the predictions 
+  4. Check the model assumptions 
+  5. Do inference
+
+  To build a linear regression modal, I will base on these assumptions;
+  
+  i) All predictors are independent of each other.
+  ii) Our data do not increase/decrease in variance (heteroscedasticity)
+  iii) Our residuals satisfy normality, independence and, linearity
+  
+  In case those conditions are not met, data transformation will be necessary.
+  
+<!-- You you can use natural log if curving up or down, sqr transformation or  exp transformation-->
+
+**Background**
+For regression, population parameters; \(\hat\beta_0\) for slope and, \(\hat\beta_1\)  for y-intercept are estimated. This is done by using a random sample df data set to solve for the slope and y intercept for each dependent parameter. The challenge here is to determine the best sample size because, slope and y-intercept are random variables. i.e their estimate values change from sample to sample. 
+
+Therefore since slope and y-intercepts are random variables then, they have a normal underline sampling distributions. Luckily enough;
+
+  1. \(\hat\beta_1\) is unbiased. That is, the mean of the y-intercept is equal to the population mean (\(\mu\hat\beta_1\ = \mu\beta_1\)). Thus, \(E(\hat\beta_1)\) = \(\beta_1\). This means on average, mean estimate is going to approach the true population parameter
+  
+ 2. The \(\beta_1\) standard deviation is estimated by \(S\hat\beta_1 = \frac{S}{\sqrt\sum(\hat x - x_i)^2}\). The standard deviation of \(\hat\beta_1\) is small, when the denominator \(\sqrt\sum(\hat x - x_i)^2\) is large. This gives us a tighter fit of the line to our data.
+ 
+Next, the estimates are tested for significance and its done by fitting our data with a line that has a non-zero slope. \(\beta_0 ;\beta_1 = 0\) if intercepting at origin, \(\beta_0 = y, \beta_1 = 0\).
+
+  To learn about the population parameters and test for their significance, confidence intervals and hypothesis tests for \(\beta_1\) are used.
+
+**Hypothesis tests:** Null hypothesis \(H_0 :\beta_1 = 0\), this means that there is no linear relationship between \(x\) and \(y\). i.e just ignore \(x\). So we want our data to give us enough evidence to reject that hypothesis in favor of my alternatives; \(H_a :\beta_1 > 0\) or \(H_a :\beta_1 < 0\) or \(H_0 :\beta_1 \ne 0\). If any of the alternative is true, then \(x\) and \(y\) have a linear relationship and the estimated slope is going to be \(\hat\beta_1\)
+
+**T-statistics:** The T-distributions helps in estimating more things in our statistics, i.e drawing more information out of the sample to come up with test statistics. In this case estimating \(\hat\beta_1\) and \(S\hat\beta_1\).
+
+So, the test statistics follows a t distribution \(T = \frac{\hat\beta_1- 0}{S\hat\beta_1} = \frac{\hat\beta_1}{S\hat\beta_1}\) where 0 is the mean assumed under the null. This has a t distribution with degrees of freedom \(df =n-2\) if null hypothesis,\(H_0\) is true. 
+
+**Confidence intervals:** The confidence interval is calculated using a formula; \(\hat\beta_1\pm t_{\alpha/2,n-2}*S\beta_1\) where \(t_{\alpha/2}\) is t critical values. Note, the confidence interval of \(\hat\beta_1\) gives a range of values where the true unknown parameter is likely to reside. It will also help in answering the question, is \(y\) related to \(x\) ?.
+
+If the confidence interval of \(\beta_1\) contains 0, then there is no linear relationship between \(y\) and \(x\). Otherwise, there is a linear relationship
+
+#### Linear Regression Model
+**Explore the data:** Before building a regression model,let us start by looking at the summary statistics of our cleaned data
+```{r echo= FALSE}
+
+clean_data%>%summary()
+
+```
+**Correlation:** Next we will look at the correlation statistics. As seen most predictor variables have have a normal distribution. Oil property variables (Dielectric, viscosity) are skewed.
+
+```{r fig.height=11,fig.width=8,echo= TRUE}
+clean_data%>%
+  select(-c(Datetime,Run_Hours, Density))%>%
+  as.data.frame()%>%
+  GGally::ggpairs()
+
+```
+
+**Linear regression model**
+
+  We will begin our simple linear model building process by using the Speed as the independent variable. Here is the relationship between Oil_DP and Speed.
+  
+```{r Oil_DP_est, echo=TRUE}
+
+data_final <- clean_data%>%
+  select(-c(Datetime))
+
+plot(Oil_DP ~ Speed, data = data_final)
+
+abline(coefficients(lm(Oil_DP ~ Speed, data = data_final)), lwd=2,lty = 2,col="red")
+title("Oil Differential Pressure vs Speed")
+```
+
+  Next, lets fit a simple linear model using Speed to estimate Oil_DP.
+
+```{r lm, echo=FALSE}
+mod_lm <- lm(Oil_DP ~ Speed, data = data_final)
+summary(mod_lm)
+
+# display the actual coefficients
+eq1 <- extract_eq(mod_lm,wrap = TRUE, use_coefs = TRUE)
+
+```
+
+From the results, our linear model is represented by the following equation `r extract_eq(mod_lm,wrap = TRUE, intercept = "beta")`
+$$ {Oil\_DP} = -17.89 + 0.06(Speed)$$
+  
+  * Look at the Residuals range (Min,Max) and, the median to see if median is close to 0. If so, This is a quick way to know that the residuals are normally distributed.
+  * Under Coefficients, check the the y-intercept ( \(\hat\beta_1\)), the slopes,the standard errors, the corresponding t values for t- statistics and the P value.
+    i. The t and p value columns indicate the values of t-test i.e.  show if our  coefficients chosen are going to differ significantly from from 0.
+    ii. The \(\hat\beta_1\) is significant with a p value close or equal to 0
+    iii. The slope estimate is significant with a p value close or equal to 0
+  * Check the Multiple R-squared which tells us how much of the variation in dependent variable can be explained by the independent variable
+  * The Adjusted R-squared adjusts for models that involve multiple independent predictor \(x\) variables. As more predictor variables are added to the model, the Multiple R-squared increases even if those predictors are not significant. Therefore we want to keep our model as simple as possible. so the adjusted R-squared is preferable
+  
+**Confidence Interval:** We can calculate a 95% confidence interval for our true population slope using the quantile of t distribution. \(CI_{95} =qt(1-\frac{\alpha}{2},df)\)
+
+```{r CI_95, warning= FALSE, message= FALSE, echo = TRUE}
+
+#calculating a  95% confidence of interval (CI) of true population
+CI_95 <- qt(0.975,df=nrow(data_final) - 2) # df is the degree of freedom
+
+#(predictor slope + t*predictor Std.Error)
+c <- coef(summary(mod_lm))[,"Estimate"]["Speed"]
+e <- coef(summary(mod_lm))[,"Std. Error"]["Speed"]
+
+p_max <- c + CI_95 *e
+
+p_min <- c - CI_95 *e
+
+#(predictor slope / Std.Error)
+T <- c/e # this is similar to t value from the model
+
+```
+  The results shows that we are 95% confident that the true slope, regressing independent variables on dependent variable is between `r p_min`  and `r p_max` Oil_DP kPa
+  
+**Hypothesis test:** Next, let us do the hypothesis test for the slope \((\beta_1)\) to see if the slope is significantly different from 0 and, compare that to the t value.
+\(T= \frac{\hat\beta_1}{S\hat\beta_1} = \) `r c`/`r e` = `r round(T,4)`
+
+Then we compare the absolute values of that test t statistics to that quantile of the the t statistics we calculated. You notice that \(|T| > t_{(\alpha/2,n-2)} =\) `r abs(T)` > `r round(CI_95,4)`.
+
+*Therefore, we reject the null hypothesis that the slope = 0*
+
+
+**Hypothesis test on p values** by calculating the percentile of t distribution where the p value is evaluated at the critical value calculated from the data
+```{r warning= FALSE, message= FALSE, echo = TRUE}
+pt<-pt(T, df=nrow(data_final) - 2) # where T value calculated above and df is the degree of freedom
+
+```
+With both \(\alpha= 0.01\) or \(\alpha = 0.05\), it leads us to reject the null hypothesis that \(\beta_1 = 0\)
+
+**Confirm residuals normality:** We plot a Histogram and Q-Q plot of residual from our model fit. From the QQ-Plot, we she that the model residual does not satisfy normality and linearity
+
+```{r normality, warning= FALSE, message= FALSE, echo = TRUE}
+
+plot(mod_lm$fitted.values, mod_lm$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_lm$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_lm$residuals)
+qqline(mod_lm$residuals,col=2)
+```
+
+**Collinearity:** This occurs when two or more predictor variables are closely related to one another or are highly correlated. As we add more predictors to our model, it becomes hard to tell which of your predictors is contributing most on you model
+
+  This may lead to a miss classification error hence leading to over fitting a model. This happens because R might confused to which of those variables is going to be used as a predictor.
+  
+**Fitting Multiple Linear Regression** Next, lets fit a multiple regression model with all predictors.
+
+```{r mod_mlr, warning= FALSE, message= FALSE, echo = TRUE}
+
+mod_mlr <- lm(Oil_DP ~ ., data = data_final)
+pander(mod_mlr)
+
+```
+
+*Residuals:*
+
+```{r warning= FALSE, message= FALSE, echo = TRUE}
+pander(summary(mod_mlr$residuals))
+
+# display the actual coefficients
+eq2 <- extract_eq(mod_mlr,wrap = TRUE, use_coefs = TRUE)
+
+plot(mod_mlr$fitted.values, mod_mlr$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_mlr$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_mlr$residuals)
+qqline(mod_mlr$residuals,col=2)
+
+```
+ 
+This model is slightly better than the first model. It is represented by the following equation `r extract_eq(mod_mlr,wrap = TRUE, intercept = "beta")`. This is simplified to
+$${Oil\_DP} = -246.82 + 0(Run\_Hours) + 9({CCP}) + 289.12({Density}) +\\ 26.03{Dielectric}) + 0.12({Speed}) + 0.01({Torque}) + 1.88({Viscosity}) +\\ 0.27({Oil\_Temp}) - 0.78({Oil\_Pressure}) $$
+ 
+ * Residuals have a normal distribution which meets our assumptions.
+ * Looking at the p values, we want to focus on key values close to 0. We only take values less than 0.01. Anything above, means that that predictor is not significant to the model and should be trimmed out of the model
+ 
+ We can use the drop1 function to drop the most insignificant variable one by one. 
+  
+```{r mod_mlr2, warning= FALSE, message= FALSE, echo = TRUE}
+mod_mlr2 <- lm(Oil_DP ~., data = data_final)
+drop1(mod_mlr2,test="F")
+
+summary(mod_mlr2)
+
+# display the actual coefficients
+eq3<-extract_eq(mod_mlr2,use_coefs = TRUE)
+
+plot(mod_mlr2$fitted.values, mod_mlr2$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_mlr2$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_mlr2$residuals)
+qqline(mod_mlr2$residuals,col=2)
+
+```
+
+$$ {{Oil\_DP}} = -246.82 + 0({Run\_Hours}) + 9({CCP}) + 289.12({Density}) + \\26.03({Dielectric}) + 0.12({Speed}) + 0.01({Torque}) + \\1.88({Viscosity}) + 0.27({Oil\_Temp}) - 0.78({Oil\_Pressure}) $$
+
+ The residual distribution figure shows residuals values distributed along 0 (horizontal) and distributed evenly above and below  0.
+
+**Dropping Variable** can be done by dropping the variable with the lowest value of sum of square (sum of Sq), residual sum of square (RSS) or Akaike information criterion (AIC).
+
+  * The F values is used to test whether that parameter is significant at 5% level or 1% level
+  * P value can also be used to drop the least significant variable and in this case, we drop the variable with the highest p value
+
+Then repeat the process until you have get the best model.
+ 
+```{r mod_mlr3, warning= FALSE, message= FALSE, echo = TRUE}
+mod_mlr3 <- lm(Oil_DP ~. -Oil_Temp, data = data_final)
+drop1(mod_mlr3,test="F")
+summary(mod_mlr3)
+
+# display the actual coefficients
+eq4<-extract_eq(mod_mlr3,use_coefs = TRUE)
+
+plot(mod_mlr3$fitted.values, mod_mlr3$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_mlr3$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_mlr3$residuals)
+qqline(mod_mlr3$residuals,col=2)
+
+```
+
+
+$$ {{Oil\_DP}} = -191.15 + 0({Run\_Hours}) + 9.55({CCP}) + 275.66({Density}) + \\23.51({Dielectric}) + 0.13({Speed}) + 0.01({Torque}) + 1.57({Viscosity}) - 0.83({Oil\_Pressure}) $$
+
+**Checking model condition**
+
+  * We check for **linearity** using residual plot. We need to see if the residuals are well centered around 0 (on y-axis) and spread evenly evenly above and below 0.
+
+As you can see the residue is centered and spreads spread evenly.
+  
+  * We can also check for **normality** by looking at histogram and qqplots above.
+
+
+**Linear Stepwise Regression Model:** As seen earlier that there is collinearity in our data, I have to use a **principle of parsimony** . The simplest, most efficient model, the best. With  application of stepwise regression, this will drop insignificant explanatory variables one by one.
+
+```{r mod_smlr, warning= FALSE, message= FALSE, echo = TRUE}
+# This provides the best model
+mod_smlr <- step(lm(Oil_DP ~ ., data = data_final))
+drop1(mod_smlr,test="F")
+
+summary(mod_smlr)
+
+eq5<-extract_eq(mod_smlr,use_coefs = TRUE)
+
+plot(mod_smlr$fitted.values, mod_smlr$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_mlr3$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_mlr3$residuals)
+qqline(mod_mlr3$residuals,col=2)
+
+```
+
+  Our final model is represented by the equtuon below:
+  
+$$ {{Oil\_DP}} = -246.82 + 0.00262({Run\_Hours}) + 9({CCP}) + 289.12({Density}) + 26.03({Dielectric}) +\\ 0.12({Speed}) + 0.01({Torque}) + 1.88({Viscosity}) + 0.27({Oil\_Temp}) - 0.78({Oil\_Pressure}) $$
+
+
+#### Polynimial Regression Modeling
+A polynomial regression: extends linear model by powers of predictors our model. As seen from the multiple linear modeling, our residuals did not meet all our required assumption. This led me to design a polynomial regression model. For this project since we are able to fit our data onto the multiple linear regression, doing polynomial regression model dos not bring significant improvement to the model.
+
+Just to show how this can be achieved
+
+```{r mod_pr,warning= FALSE, message= FALSE, echo = TRUE}
+
+mod_pr <- lm(Oil_DP ~ Run_Hours + Density + Torque + 
+    Oil_Pressure +(Density^2) +I(Torque^2) + I(Viscosity^2) + I(Density^3) + I(Viscosity^3) + I(Oil_Temp^3), data = data_final)
+
+drop1(mod_pr,test="F")
+summary(mod_pr)
+
+eq6 <- extract_eq(mod_pr,use_coefs = TRUE)
+
+plot(mod_pr$fitted.values, mod_pr$residuals,pch=20)
+title("Residual distribution")
+
+par(mfrow =c(1,2))
+
+# par(cex.main =0.8)
+hist(mod_pr$residuals)
+
+#Normal Q-Q Plot of residuals
+qqnorm(mod_pr$residuals)
+qqline(mod_pr$residuals,col=2)
+
+```
+$$ {Oil\_DP} = -257.15 + 0.004845({Run\_Hours}) + 2052.03({Density}) - 0.13({Torque}) - 0.55({Oil\_Pressure}) +\\ 0.000006924((Torque2)) + 0.2(Viscosity2) - 925.3(Density3) - 0.01(Viscosity3) + 0.00001632(Oil\_Temp3) $$
+\pagebreak
+
+## Domain VI: Report Summary
+### {.tabset .tabset-fade .tabset-pills}
+#### Evaluation
+  This phase assesses the degree to which the model meets the business objectives and seeks to determine if there is some business reason why this model is deficient. We will compare our results found with the original questions posed by the sponsors in the Business Understanding phase. From the the customer expectations, I needed to identify the parameters needed to predict the oil differential pressure and also, to design an oil differential pressure model.
+  
+  To answer this question, I started by looking at the all the 15 parameters in the original dataset, I performed data cleaning to get ride of rows with na (missing data), outliers and, redundancies. Then I filtered the data for only or the rated condition and additional filtering performed as explained in data cleaning section above. With the cleaned data, I performed a multiple linear regression model which inspected to make sure that its residuals are normally distributed and meet linearity assumptions.
+  
+#### Useful insights
+  After careful examination of the dataset, I observed that the dataset is grouped in three clusters:Idle condition, Rated condition and, Transition between idle and rated conditions. Our response variable is capped at 125kPa, therefore the data was filtered for values of \(Oil\_DP < 125\). In addition, this analysis focused rated conditions but the analysis can be repeated for other conditions by just filtering the data for those conditions.
+  
+  From the analysis;Run_Hours,CCP, Density, Dielectric, Speed, Torque, Oil_Pressure and, oil_temp are the significant parameters that are included in the final model. The model performance is done in previous sections. The final model is represented by the following equation. From the model, we see that all the predictors have a linear relationship with response variable
+  
+  $$ {{Oil\_DP}} = -246.82 + 0.00262({Run\_Hours}) + 9({CCP}) + 289.12({Density}) + 26.03({Dielectric}) +\\ 0.12({Speed}) + 0.01({Torque}) + 1.88({Viscosity}) + 0.27({Oil\_Temp}) - 0.78({Oil\_Pressure}) $$
+  
+#### Limitations and Recommendations
+  This model only focuses for on rated conditions. Here are some of the recommendations for the model improvements
+  
+  * A generalized model can be built to include other conditions
+  * Build a **time series predictive model**. This will be useful not only in predicting the oil differential pressure but also we be able to tell when to hit a given value of ODP. This will be useful for my client when it comes to scheduling service intervals.
+  * Due the capped values of our response valuable, instead of building a linear regression model, a  logistic regression model can be built instead. This can be done by setting the values of Oil_DP greater than 125 to be 1, else 0.
+  * **Model adaptability: ** The model above was built with Q4 2020 dataset, but our clients have latest data that is coming and it will be very beneficially for our client to have a model that can pick the latest data to make predictions.
+  * Also our client filtered the parameters to only those believed to be related to ODP. It is possible there there are other parameters that more contributed to ODP than those provided. My recommendations would would be to provide all parameters to the analyst to perform a PCA to determined the most significant parameters to the ODP
+
+
+  The challenges I found at the beginning was the the use of a vast amount of data. Initial the dataset provided had over 2 million observations and with the limited amount of computing power, some portions of analysis were failing. This was mitigated by reducing the amount of data I was I started to use. However, the analysis was a success and the predictive model built, meets the customer requirements for this project.
+
+
